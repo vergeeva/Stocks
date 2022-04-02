@@ -11,7 +11,10 @@ namespace Валюты
     public partial class Form1 : Form
     {
         List<Stock> stocks = new List<Stock>();
+        Body body = new Body();
+       
         private const string RequestUri = "https://quote.rbc.ru/v5/ajax/catalog/get-tickers?type=share&sort=blue_chips&limit=200&offset=0";
+        private const string RequestUri_Currency = "https://www.cbr-xml-daily.ru/daily_json.js";
 
         public class Stock
         {
@@ -33,6 +36,26 @@ namespace Валюты
             [JsonPropertyName("title")]
             public string? Title { get; set; }
         }
+        //------------------------------------------------------------
+
+        public class Body
+        {
+            [JsonPropertyName("Valute")]
+            public Valute? valute { get; set; }
+        }
+        public class Valute
+        { 
+            [JsonPropertyName("USD")]
+            public USD? usd { get; set; }
+        }
+
+        public class USD
+        { 
+            [JsonPropertyName("Value")]
+            public double? value { get; set; }
+
+        }
+
         public Form1()
         {
             InitializeComponent();
@@ -62,6 +85,37 @@ namespace Валюты
                 }
             }
 
+            //-----------------------------------------------------
+            //Перевод в курс противоположную валюту
+            HttpClient httpClient1 = new HttpClient();
+            httpClient1.MaxResponseContentBufferSize = 2560000;
+
+            HttpResponseMessage response1 = await httpClient1.GetAsync(RequestUri_Currency);
+            response1.EnsureSuccessStatusCode();
+
+            jsonString = await response1.Content.ReadAsStringAsync();
+
+            body = JsonSerializer.Deserialize<Body>(jsonString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (body != null)
+            {
+                for (int i = 0; i < dataGridView1.Rows.Count; i++)
+                {
+                    if (dataGridView1.Rows[i].Cells[2].Value.ToString() == "USD")
+                    {
+                        double temp_value = Math.Round(Convert.ToDouble(Convert.ToDouble(dataGridView1.Rows[i].Cells[1].Value) * body.valute.usd.value), 5);
+                        dataGridView1.Rows[i].Cells[3].Value = temp_value;
+                        dataGridView1.Rows[i].Cells[4].Value = "RUB";
+                    }
+                    else
+                    {
+                        double temp_value = Math.Round(Convert.ToDouble(Convert.ToDouble(dataGridView1.Rows[i].Cells[1].Value) / body.valute.usd.value), 5);
+                        dataGridView1.Rows[i].Cells[3].Value = temp_value;
+                        dataGridView1.Rows[i].Cells[4].Value = "USD";
+                    }
+
+                }
+
+            }
         }
 
         private void button2_Click(object sender, EventArgs e)
@@ -88,5 +142,6 @@ namespace Валюты
             }
             MessageBox.Show("Сохранение в базу данных выполнено!");
         }
+
     }
 }
