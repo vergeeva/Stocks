@@ -7,11 +7,11 @@ using System.Net.Http;
 using System.Data.SqlClient;
 
 namespace Валюты
-{
+{//------------------ДЛЯ ТЕКУЩЕГО КУРСА АКЦИЙ----------------------------------
     public class Stock
     {
         [JsonPropertyName("title")]
-        public string? Title { get; set; }
+        public string? Title { get; set; } 
 
         [JsonPropertyName("price")]
         public double Price { get; set; }
@@ -28,7 +28,8 @@ namespace Валюты
         [JsonPropertyName("title")]
         public string? Title { get; set; }
     }
-    //------------------------------------------------------------
+
+    //---------------ДЛЯ КУРСА ДОЛЛАРА---------------------------------------------
 
     public class Body
     {

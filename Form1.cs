@@ -19,7 +19,10 @@ namespace Валюты
         List<LastStockCourse> OldCourse = new List<LastStockCourse>(); //Прошлые курсы акций
         Dictionary<string, double> NamePrice = new Dictionary<string, double>(); //Для хранения наименования и цены нового курса
         Dictionary<String, double> Predict = new Dictionary<string, double>(); //для сохранения прогноза для всех акций
+        Dictionary<String, double> PredictFormula = new Dictionary<string, double>(); //для сохранения прогноза по формуле для всех акций
+        Dictionary<String, double> PredictBuyFormula = new Dictionary<string, double>(); //Прогноз для купленных акций по формулe
         Dictionary<String, double> PredictBuy = new Dictionary<string, double>(); //Прогноз для купленных акций
+        const string connectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\nastya\Desktop\6сем\Сартасов_ВССИТ\Валюты\Database1.mdf;Integrated Security=True";
 
         private const string RequestUri = "https://quote.rbc.ru/v5/ajax/catalog/get-tickers?type=share&sort=blue_chips&limit=200&offset=0";
         private const string RequestUri_Currency = "https://www.cbr-xml-daily.ru/daily_json.js";
@@ -36,6 +39,7 @@ namespace Валюты
             }
             return -1;
         }
+
         //-----------НАЙТИ В СПИСКЕ КУПЛЕННЫХ АКЦИЙ----------------
         public int FindInStockTable(List<StockTable> st, string name)
         {
@@ -48,6 +52,7 @@ namespace Валюты
             }
             return -1;
         }
+
         //-------НАЙТИ В АРХИВНОМ КУРСЕ АКЦИЙ--------------------------------
         public int FindInLastStockCourse(List<LastStockCourse> st, string name)
         {
@@ -60,6 +65,7 @@ namespace Валюты
             }
             return -1;
         }
+
         //------------ВЫСВЕТИТЬ КУПЛЕННЫЕ АКЦИИ В ГРИД------------------------
         public void ViewListInDGV(DataGridView dgv, List<StockTable> list)
         {
@@ -87,6 +93,7 @@ namespace Валюты
             dataGridView1.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
 
         }
+
         //СОБЫТИЕ ЗАГРУЗКИ ДАННЫХ С САЙТА СПИСКА ВСЕХ АКЦИЙ + ПЕРЕВОДА В ПРОТИВОПОЛОЖНУЮ ВАЛЮТУ-----
         private async void button1_Click(object sender, EventArgs e)
         {//Загрузить данные в грид с сайта
@@ -126,13 +133,13 @@ namespace Валюты
                 {
                     if (dataGridView1.Rows[i].Cells[2].Value.ToString() == "USD")
                     {
-                        double temp_value = Math.Round(Convert.ToDouble(Convert.ToDouble(dataGridView1.Rows[i].Cells[1].Value) * body.valute.usd.value), 5);
+                        double temp_value = Math.Round((double)((double)dataGridView1.Rows[i].Cells[1].Value * body.valute.usd.value), 5);
                         dataGridView1.Rows[i].Cells[3].Value = temp_value;
                         dataGridView1.Rows[i].Cells[4].Value = "RUB";
                     }
                     else
                     {
-                        double temp_value = Math.Round(Convert.ToDouble(Convert.ToDouble(dataGridView1.Rows[i].Cells[1].Value) / body.valute.usd.value), 5);
+                        double temp_value = Math.Round((double)((double)dataGridView1.Rows[i].Cells[1].Value / body.valute.usd.value), 5);
                         dataGridView1.Rows[i].Cells[3].Value = temp_value;
                         dataGridView1.Rows[i].Cells[4].Value = "USD";
                     }
@@ -140,16 +147,17 @@ namespace Валюты
                 }
 
             }
-
+            button1.Enabled = true;
             button2.Enabled = true;
             buttonBuy.Enabled = true;
             buttonSell.Enabled = true;
+            dataGridView1.AutoResizeColumns();
         }
+
         //КНОПКА "СДЕЛАТЬ ПРОГНОЗ"------------------------------------
         private void button2_Click(object sender, EventArgs e)
         { //сделать прогноз
-            //Скачать в бд список акций
-            string connectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\nastya\Desktop\6сем\Сартасов_ВССИТ\Валюты\Database1.mdf;Integrated Security=True";
+            //Скачать в бд список акций - для второго задания оставлено
             System.Data.SqlClient.SqlConnection sqlConnection1 = new System.Data.SqlClient.SqlConnection(connectionString);
 
             SqlCommand cmnd = new SqlCommand("DELETE FROM [Table]", sqlConnection1);
@@ -170,56 +178,61 @@ namespace Валюты
             }
 
             //-------------------ПРОГНОЗ---------------------------------------------------
-            //try
-            //{
-            Predict.Clear();
-            PredictBuy.Clear();
-            int indexInGrid;
-            double YesterdayPrice;
-            double DayBeforeYesterdayPrice;
-            foreach (var element in stocks) //так как грид составлен по объекту Стокс
+            try
             {
-                double ValuePredict; //значение предсказания для текущей компании
-                double ActualPrice = element.Price; //актуальная цена
-
-                int i = FindInLastStockCourse(OldCourse, element.Company.Title); //ищем акцию в старом курсе
-                //if (i != -1)
-                //{
-                    YesterdayPrice = OldCourse[i].Yesterday; //вчерашняя цена
-                    DayBeforeYesterdayPrice = OldCourse[i].DayBeforeYesterday;//Позавчерашняя цена
-                //}
-
-
-                ValuePredict = ActualPrice - (3 * ActualPrice - 3 * YesterdayPrice + DayBeforeYesterdayPrice);//Прогноз = 3 * курс_сегодня - 3 * курс_вчера + курс_позавчера
-                indexInGrid = FindInDGV(dataGridView1, element.Company.Title);
-                Predict.Add(element.Company.Title, ValuePredict);//записываем значение в словарь
-                dataGridView1.Rows[indexInGrid].Cells[5].Value = ValuePredict; //высвечиваем в грид
-            }
-
-            //buttonBuyAuto.Enabled = true;
-            //buttonSellAuto.Enabled = true;
-            //dataGridView1.Sort(Prediction, ListSortDirection.Descending); //сортировка по убыванию
-
-            //заполняем скрытый столбец прогноза в списке купленных акций
-            for (int i = 0; i < Buy.Count; i++)
-            {
-                int iBuy = FindInStockTable(Buy, dataGridView2.Rows[i].Cells[0].Value.ToString()); //ищем, так как грид может быть сортированным
-                dataGridView2.Rows[i].Cells[3].Value = Predict[Buy[iBuy].name]; //высвечиваем в грид
-                try
+                Predict.Clear();
+                PredictBuy.Clear();
+                int indexInGrid;
+                double YesterdayPrice;
+                double DayBeforeYesterdayPrice;
+                foreach (var element in stocks) //так как грид составлен по объекту Стокс
                 {
-                    PredictBuy.Add(Buy[iBuy].name, Predict[Buy[iBuy].name]); //записываем с словарь
+                    double ValuePredict; //значение предсказания для текущей компании
+                    double ActualPrice = element.Price; //актуальная цена
+
+                    int i = FindInLastStockCourse(OldCourse, element.Company.Title); //ищем акцию в старом курсе
+
+                    if (element.Currency == "USD")
+                    {//если в долларах, переводим в рубли
+                        ActualPrice = (double)(element.Price * body.valute.usd.value);
+                        YesterdayPrice = (double)(OldCourse[i].Yesterday * body.valute.usd.value); //вчерашняя цена
+                        DayBeforeYesterdayPrice = (double)(OldCourse[i].DayBeforeYesterday * body.valute.usd.value);//Позавчерашняя цена
+                       
+                    }
+                    else
+                    {//иначе оставляем рубли
+                        YesterdayPrice = OldCourse[i].Yesterday; //вчерашняя цена
+                        DayBeforeYesterdayPrice = OldCourse[i].DayBeforeYesterday;//Позавчерашняя цена
+                    }
+
+                    //Прогноз = 3 * курс_сегодня - 3 * курс_вчера + курс_позавчера
+                    ValuePredict = Math.Round((3 * ActualPrice - 3 * YesterdayPrice + DayBeforeYesterdayPrice) - ActualPrice, 3);
+                    indexInGrid = FindInDGV(dataGridView1, element.Company.Title);//ищем в таблице нужную компанию
+                    Predict.Add(element.Company.Title, ValuePredict);//записываем значение в словарь
+                    dataGridView1.Rows[indexInGrid].Cells[5].Value = ValuePredict; //высвечиваем в грид
                 }
-                catch 
+
+                //заполняем скрытый столбец прогноза в списке купленных акций
+                for (int i = 0; i < Buy.Count; i++)
                 {
-                    PredictBuy[Buy[iBuy].name] = Predict[Buy[iBuy].name];
-                } //избегать ошибки повторений
+                    int iBuy = FindInStockTable(Buy, dataGridView2.Rows[i].Cells[0].Value.ToString()); //ищем, так как грид может быть сортированным
+                    dataGridView2.Rows[i].Cells[3].Value = Predict[Buy[iBuy].name]; //высвечиваем в грид
+                    try
+                    {
+                        PredictBuy.Add(Buy[iBuy].name, Predict[Buy[iBuy].name]); //записываем в словарь
+                    }
+                    catch
+                    {
+                        PredictBuy[Buy[iBuy].name] = Predict[Buy[iBuy].name];
+                    } //избегать ошибки повторений
+                }
             }
-            //dataGridView2.Sort(PredictionBuy, ListSortDirection.Ascending); //сортировка по возрастанию
-            //}
-            //catch { }
+            catch { throw; }
             buttonBuyAuto.Enabled = true;
             buttonSellAuto.Enabled = true;
+            SimplePrediction.Checked = true;
         }
+
         //-------ЗАПРЕТ НА ВВОД БУКВ И ЗНАКОВ В ТЕКСТ БОКС------------------------------------
         private void textBox1_KeyPress(object sender, KeyPressEventArgs e)
         {
@@ -229,65 +242,68 @@ namespace Валюты
             else
                 e.Handled = true;
         }
+
         //---------------КНОПКА "КУПИТЬ"---------------------------------------------------
         private void buttonBuy_Click(object sender, EventArgs e)
         {
             //купить акцию
             try
-            {
+            {      
                 buttonBuyAuto.Enabled = false;
                 buttonSellAuto.Enabled = false;
-                string name = dataGridView1.SelectedRows[0].Cells[0].Value.ToString();
-                int count = Convert.ToInt32(textBoxCount.Text);
-                DateTime date = DateTime.Now;
+                string name = dataGridView1.SelectedRows[0].Cells[0].Value.ToString(); //читаем имя выделенной строки
+                int count = Convert.ToInt32(textBoxCount.Text); //читаем количество из текстового поля
+                DateTime date = DateTime.Now; //дату покупки будем записывать в реальном времени
                 if (count == 0)
-                {
-                    MessageBox.Show("Ноль акций можно купить и без покупки", "Шутка-минутка про ноль акций");
+                {//если по ошибке введен ноль
+                    MessageBox.Show("Введите осмысленное число акций", "Нельзя купить ноль акций");
                 }
                 else
-                {
+                {//если же все в порядке
                     double price;
                     if (dataGridView1.SelectedRows[0].Cells[2].Value.ToString() == "USD")
-                    {
+                    {//если валюта в долларах, то берем курс в рублях
                         price = Convert.ToDouble(dataGridView1.SelectedRows[0].Cells[3].Value) * count;
                     }
                     else
-                    {
+                    {//иначе так и берем в рублях
                         price = Convert.ToDouble(dataGridView1.SelectedRows[0].Cells[1].Value) * count;
                     }
                      
                     if (Balance > price)
-                    {
-                        Balance -= price;
-                        textBoxBalance.Text = Balance.ToString();
-                        dataGridView2.Rows.Add(name, date, count);
+                    {//если денег у пользователя больше, чем стоимость желаемых акций
+                        Balance -= price; //вычитаем стоимость из баланса
+                        textBoxBalance.Text = Balance.ToString(); //обновляем баланс на форме
+                        dataGridView2.Rows.Add(name, date, count);//добавляем акцию в список купленных акций
 
-                        //Сделать без повторов
+                        //Чтобы было без повторов
                         int ind = FindInStockTable(Buy, name);
+                        //используем вспомогательную функцию поиска в гриде
                         if (ind != -1)
-                        {
+                        {//если такая акция уже имеется
                             Buy[ind].date_of_last_buy = DateTime.Now;
                             Buy[ind].Count_of_stocks += count;
-                            
+                            //обновляем количество акций
                         }
                         else
-                        {
+                        {//иначе добавляем новую акцию в список купленных
                             Buy.Add(new StockTable(name, date, count));
                         }
                         ViewListInDGV(dataGridView2, Buy);
-                        //перерисовать грид
+                        //Отображаем список купленных акций
                     }
                     else
-                    {
-                        MessageBox.Show("Денег нет, но вы держитесь", "Недостаточно средств для покупки");
+                    {//если денег не хватает, сообщаем
+                        MessageBox.Show("Попробуйте продать что-нибудь", "Недостаточно средств для покупки");
                     }
                 }
             }
             catch (Exception)
-            {
+            {//если пользователь что-то забыл для покупки
                 MessageBox.Show("Необходимо выделить строку в списке акций и заполнить текстовое поле количества акций", "Предупреждение");
             }
         }
+
         //--------ЗАГРУЗКА ФОРМЫ-----------------------------------
         private void Form1_Load(object sender, EventArgs e)
         {
@@ -296,7 +312,6 @@ namespace Валюты
                 button1_Click(sender, e);
                 //Загрузка данных из базы данных
                 //качаем баланс
-                string connectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\nastya\Desktop\6сем\Сартасов_ВССИТ\Валюты\Database1.mdf;Integrated Security=True";
                 System.Data.SqlClient.SqlConnection sqlConnection1 = new System.Data.SqlClient.SqlConnection(connectionString);
 
                 SqlCommand cmnd = new SqlCommand("SELECT * FROM [Баланс]", sqlConnection1);
@@ -351,69 +366,67 @@ namespace Валюты
             {
                 MessageBox.Show("Произошла ошибка");
             }
+            this.WindowState = FormWindowState.Maximized;
+            dataGridView1.AutoResizeColumns();
 
         }
+
         //--------КНОПКА "ПРОДАТЬ"---------------------------------------------
         private void buttonSell_Click(object sender, EventArgs e)
         {
             //Продать акцию
             try
             {
-                buttonBuyAuto.Enabled = false;
+                buttonBuyAuto.Enabled = false;//скрыли кнопки
                 buttonSellAuto.Enabled = false;
-                string name = dataGridView2.SelectedRows[0].Cells[0].Value.ToString();
-                int count = Convert.ToInt32(textBoxCount.Text);
+                string name = dataGridView2.SelectedRows[0].Cells[0].Value.ToString();//берем имя выделеннй акции
+                int count = Convert.ToInt32(textBoxCount.Text);//берем количество 
                 int i = FindInStockTable(Buy, name); //Для поиска в массиве
                 int index = FindInDGV(dataGridView1, name); //Для поиска в гриде 1
                 double ActualPrice; //надо искать в гриде
 
                 if (dataGridView1.Rows[index].Cells[2].Value.ToString() == "USD")
-                {
+                {//если курс в долларах, берем в рублях
                     ActualPrice = Convert.ToDouble(dataGridView1.Rows[index].Cells[3].Value);
                 }
                 else
-                {
+                {//иначе берем в рублях сразу
                     ActualPrice = Convert.ToDouble(dataGridView1.Rows[index].Cells[1].Value);
                 }
                 //Сверить количество акций
                 if (count <= Buy[i].Count_of_stocks)
-                {
-                    Buy[i].Count_of_stocks -= count;
+                {//если количество меньше или равно тому, сколько хочет продать пользователь
+                    Buy[i].Count_of_stocks -= count;//убавляем количество
                     if (Buy[i].Count_of_stocks == 0)
                     {
+                        //предупреждение, если все акции продали
                         MessageBox.Show(String.Format("Вы продали все акции компании {0}", Buy[i].name), "Акции кончились");
-                        Buy.RemoveAt(i);
-                        
-                        //Высветить в грид массивчик
+                        Buy.RemoveAt(i);                        
+                        //удаляем из купленных, если все продали
                     }
                     Balance += count * ActualPrice; //актуализируем баланс
                     textBoxBalance.Text = Balance.ToString(); //выводим в текстовое поле
                 }
                 else
-                {
+                {//на случай, если пользователь общитался и решил продать больше, чем есть
                     MessageBox.Show("Нельзя продать акций больше, чем есть", "Недостаточно акций для продажи");
 
                 }
                 ViewListInDGV(dataGridView2, Buy);
-                //Если продаем меньше или столько же, сколько есть:
-                //Продажа по текущему курсу
-                //искать в соседней таблице такую акцию
-                //Нашли, продали, количество*текущий курс
-                //Прибавили к балансу
-
+                //Высветить в грид массив купленных акций
             }
             catch (Exception)
             {
                 MessageBox.Show("Необходимо выделить строку в списке акций и заполнить текстовое поле количества акций", "Предупреждение");
             }
         }
+
         //--------------ПРИ ЗАКРЫТИИ ФОРМЫ------------------------------------------------
         private void Form1_FormClosed(object sender, FormClosedEventArgs e)
         {
             try
             {
 //---------------Загрузка купленных акций в базу данных--------------------------------------------------
-                string connectionString = @"Data Source=(LocalDB)\MSSQLLocalDB;AttachDbFilename=C:\Users\nastya\Desktop\6сем\Сартасов_ВССИТ\Валюты\Database1.mdf;Integrated Security=True";
                 System.Data.SqlClient.SqlConnection sqlConnection1 = new System.Data.SqlClient.SqlConnection(connectionString);
 
                 SqlCommand cmnd = new SqlCommand("DELETE FROM [КупленныеАкции]", sqlConnection1);
@@ -500,92 +513,281 @@ namespace Валюты
                 MessageBox.Show("Произошла ошибка");
             }
         }
+
         //----------------ПОКУПКА ПО АВТОМАТУ----------------------
         private void buttonBuyAuto_Click(object sender, EventArgs e)
         {
-            //при покупке по убыванию
-            dataGridView1.Sort(Prediction, ListSortDirection.Descending); //сортировка по убыванию
             //Купить по автомату
-            try
-            {
-                for (int i = 0; i < 10; i++)
+            if (FormulaPrediction.Checked)
+            {//если выбран прогноз по формуле
+                dataGridView1.Sort(FormulaPredict, ListSortDirection.Descending); //сортировка по убыванию
+                try
                 {
-                    int CountBuy = 10 - i;
-                    dataGridView1.Rows[i].Selected = true;//выделим строку
-                    textBoxCount.Text = CountBuy.ToString(); //запишем количество
-                    buttonBuy_Click(sender, e); //вызовем покупку
-                    buttonBuyAuto.Enabled = true;
-                    buttonSellAuto.Enabled = true;
+                    for (int i = 0; i < 10; i++)
+                    {
+                        int CountBuy = 10 - i;
+                        dataGridView1.Rows[i].Selected = true;//выделим строку
+                        textBoxCount.Text = CountBuy.ToString(); //запишем количество
+                        buttonBuy_Click(sender, e); //вызовем покупку
+                        buttonBuyAuto.Enabled = true;
+                        buttonSellAuto.Enabled = true;
+                    }
+
+                    textBoxCount.Text = "";//очистим поле
+                }
+                catch { MessageBox.Show("Произошла ошибка"); }
+            }
+            else if (SimplePrediction.Checked)
+            {//если выбран простой прогноз
+                dataGridView1.Sort(Prediction, ListSortDirection.Descending); //сортировка по убыванию
+                try
+                {
+                    for (int i = 0; i < 10; i++)
+                    {
+                        int CountBuy = 10 - i;
+                        dataGridView1.Rows[i].Selected = true;//выделим строку
+                        textBoxCount.Text = CountBuy.ToString(); //запишем количество
+                        buttonBuy_Click(sender, e); //вызовем покупку
+                        buttonBuyAuto.Enabled = true;
+                        buttonSellAuto.Enabled = true;
+                    }
+
+                    textBoxCount.Text = "";//очистим поле
+                }
+                catch { MessageBox.Show("Произошла ошибка"); }
+            }
+
+            //если появились новые акции, надо записать для них прогноз
+            for (int i = 0; i < Buy.Count; i++)
+            {
+                int iBuy = FindInStockTable(Buy, dataGridView2.Rows[i].Cells[0].Value.ToString()); //ищем, так как грид может быть сортированным
+                try
+                {
+                    dataGridView2.Rows[i].Cells[3].Value = Predict[Buy[iBuy].name]; //высвечиваем в грид простой курс
+                }
+                catch
+                {
+                    //Если  пользователь не сделал простой прогноз и решил купить по  другому прогнозу
                 }
 
-                textBoxCount.Text = "";//очистим поле
-
-                //если появились новые акции, надо записать для них прогноз
-                for (int i = 0; i < Buy.Count; i++)
+                try
                 {
-                    int iBuy = FindInStockTable(Buy, dataGridView2.Rows[i].Cells[0].Value.ToString()); //ищем, так как грид может быть сортированным
-                    dataGridView2.Rows[i].Cells[3].Value = Predict[Buy[iBuy].name]; //высвечиваем в грид
-                    try
+                    dataGridView2.Rows[i].Cells[4].Value = PredictFormula[Buy[iBuy].name]; //высвечиваем в грид курс по формуле
+                }
+                catch
+                {
+                    //если пользователь не сделал прогноз по формуле и решил купить по простому прогнозу
+                }
+
+                try
+                {
+                    if (Predict.Count != 0)
                     {
-                        PredictBuy.Add(Buy[iBuy].name, Predict[Buy[iBuy].name]); //записываем с словарь
+                        PredictBuy.Add(Buy[iBuy].name, Predict[Buy[iBuy].name]); //записываем в словарь
                     }
-                    catch
+                    else if (PredictFormula.Count != 0)
+                    {
+                        PredictBuyFormula.Add(Buy[iBuy].name, PredictFormula[Buy[iBuy].name]);
+                    }
+
+                }
+                catch
+                {
+                    if (Predict.Count != 0)
                     {
                         PredictBuy[Buy[iBuy].name] = Predict[Buy[iBuy].name];
-                    } //избегать ошибки повторений
-                }
+                    }
+                    else if (PredictFormula.Count != 0)
+                    {
+                        PredictBuyFormula[Buy[iBuy].name] = PredictFormula[Buy[iBuy].name];
+                    }
+                } //избегать ошибки повторений
             }
-            catch { MessageBox.Show("Произошла ошибка"); }
+
         }
+
         //--------------------------ПРОДАЖА ПО АВТОМАТУ------------------------------------------
         private void buttonSellAuto_Click(object sender, EventArgs e)
         {
             //Сортировка по возрастанию при продаже
-            dataGridView2.Sort(PredictionBuy, ListSortDirection.Ascending); //сортировка по возрастанию
-                                                                            //try
-                                                                            //{//продать по автомату
 
-            if (Buy.Count != 0) //если есть купленные акции
-            {
-                int StockCount = Buy.Count / 2;
-                int i = 0;
-                foreach (var pair in PredictBuy.OrderBy(pair => pair.Value))
-                {//отображаем словарь
-                    int j = FindInStockTable(Buy, pair.Key); //ищем в списке купленных акций
-                    int k = FindInDGV(dataGridView2, pair.Key); //ищем в гриде
-                    dataGridView2.Rows[k].Selected = true; //выделяем необходимую строку
-                    textBoxCount.Text = Buy[j].Count_of_stocks.ToString(); //запишем количество
-                    buttonSell_Click(sender, e); //вызовем продажу  
-                    PredictBuy.Remove(pair.Key);
-                    buttonBuyAuto.Enabled = true;
-                    buttonSellAuto.Enabled = true;
-                    i++;
-                    if (i == StockCount) { break; }
+            if (FormulaPrediction.Checked)
+            {//если выбран прогноз по формуле
+                try
+                {//продать по автомату
+
+                    if (Buy.Count != 0) //если есть купленные акции
+                    {
+                        int StockCount = Buy.Count / 2;
+                        int i = 0;
+                        foreach (var pair in PredictBuyFormula.OrderBy(pair => pair.Value))
+                        {//отображаем словарь
+                            int j = FindInStockTable(Buy, pair.Key); //ищем в списке купленных акций
+                            int k = FindInDGV(dataGridView2, pair.Key); //ищем в гриде
+                            dataGridView2.Rows[k].Selected = true; //выделяем необходимую строку
+                            textBoxCount.Text = Buy[j].Count_of_stocks.ToString(); //запишем количество
+                            buttonSell_Click(sender, e); //вызовем продажу  
+                            PredictBuyFormula.Remove(pair.Key); //удаляем из списка для предсказаний
+                            buttonBuyAuto.Enabled = true;
+                            buttonSellAuto.Enabled = true;
+                            i++;
+                            //чтобы продать только половину от количества всех акций
+                            if (i == StockCount) { break; }
+                        }
+
+                        dataGridView2.Sort(PredictionFormula, ListSortDirection.Ascending); //сортировка по возрастанию
+                    }
+
+                    else
+                    {
+                        MessageBox.Show("Чтобы что-то продать,надо для начала что-то купить");
+                    }
+                    textBoxCount.Text = "";//очистим поле
                 }
-                //------------------------------------------
-                //если что-то продали, надо актуализировать прогноз
-                for (i = 0; i < Buy.Count; i++)
+                catch { MessageBox.Show("Произошла ошибка"); }
+            }
+            else if (SimplePrediction.Checked)
+            {//если выбран просто прогноз
+                try
+                {//продать по автомату
+
+                    if (Buy.Count != 0) //если есть купленные акции
+                    {
+                        int StockCount = Buy.Count / 2;
+                        int i = 0;
+                        foreach (var pair in PredictBuy.OrderBy(pair => pair.Value))
+                        {//отображаем словарь
+                            int j = FindInStockTable(Buy, pair.Key); //ищем в списке купленных акций
+                            int k = FindInDGV(dataGridView2, pair.Key); //ищем в гриде
+                            dataGridView2.Rows[k].Selected = true; //выделяем необходимую строку
+                            textBoxCount.Text = Buy[j].Count_of_stocks.ToString(); //запишем количество
+                            buttonSell_Click(sender, e); //вызовем продажу  
+                            PredictBuy.Remove(pair.Key); //удаляем из списка для предсказаний
+                            buttonBuyAuto.Enabled = true;
+                            buttonSellAuto.Enabled = true;
+                            i++;
+                            //чтобы продать только половину от количества всех акций
+                            if (i == StockCount) { break; }
+                        }
+                        
+                        dataGridView2.Sort(PredictionBuy, ListSortDirection.Ascending); //сортировка по возрастанию
+                    }
+                    else
+                    {
+                        MessageBox.Show("Чтобы что-то продать,надо для начала что-то купить");
+                    }
+                    textBoxCount.Text = "";//очистим поле
+                }
+                catch { MessageBox.Show("Произошла ошибка"); }
+            }
+
+            //если что-то продали, надо актуализировать прогноз
+            for (int i = 0; i < Buy.Count; i++)
+            {
+                int iBuy = FindInStockTable(Buy, dataGridView2.Rows[i].Cells[0].Value.ToString()); //ищем, так как грид может быть сортированным
+                try
+                {
+                    dataGridView2.Rows[i].Cells[3].Value = Predict[Buy[iBuy].name]; //высвечиваем в грид простой курс
+                }
+                catch
+                {
+                    //Если  пользователь не сделал простой прогноз и решил купить по  другому прогнозу
+                }
+
+                try
+                {
+                    dataGridView2.Rows[i].Cells[4].Value = PredictFormula[Buy[iBuy].name]; //высвечиваем в грид курс по формуле
+                }
+                catch
+                {
+                    //если пользователь не сделал прогноз по формуле и решил купить по простому прогнозу
+                }
+
+                try
+                {
+                    if (Predict.Count != 0)
+                    {
+                        PredictBuy.Add(Buy[iBuy].name, Predict[Buy[iBuy].name]); //записываем в словарь
+                    }
+                    else if (PredictFormula.Count != 0)
+                    {
+                        PredictBuyFormula.Add(Buy[iBuy].name, PredictFormula[Buy[iBuy].name]);
+                    }
+
+                }
+                catch
+                {
+                    if (Predict.Count != 0)
+                    {
+                        PredictBuy[Buy[iBuy].name] = Predict[Buy[iBuy].name];
+                    }
+                    else if (PredictFormula.Count != 0)
+                    {
+                        PredictBuyFormula[Buy[iBuy].name] = PredictFormula[Buy[iBuy].name];
+                    }
+                } //избегать ошибки повторений
+            }
+
+
+        }
+
+        //--------------СДЕЛАТЬ ПРОГНОЗ ПО ФОРМУЛЕ----------------------------------------
+        private void button1_Click_1(object sender, EventArgs e)
+        {//прогноз на завтра = скользящая вчера +1/3*(сегодня-вчера)
+            //скользящая вчера = (позавчера + вчера + сегодня)/3
+            try
+            {
+                PredictFormula.Clear();
+                PredictBuyFormula.Clear();
+                int indexInGrid;
+                double YesterdayPrice;
+                double DayBeforeYesterdayPrice;
+                foreach (var element in stocks) //так как грид составлен по объекту Стокс
+                {
+                    double ValuePredict; //значение предсказания для текущей компании
+                    double ActualPrice = element.Price; //актуальная цена
+
+                    int i = FindInLastStockCourse(OldCourse, element.Company.Title); //ищем акцию в старом курсе
+
+                    if (element.Currency == "USD")
+                    {//если в долларах, переводим в рубли
+                        ActualPrice = (double)(element.Price * body.valute.usd.value);
+                        YesterdayPrice = (double)(OldCourse[i].Yesterday * body.valute.usd.value); //вчерашняя цена
+                        DayBeforeYesterdayPrice = (double)(OldCourse[i].DayBeforeYesterday * body.valute.usd.value);//Позавчерашняя цена
+
+                    }
+                    else
+                    {//иначе оставляем рубли
+                        YesterdayPrice = OldCourse[i].Yesterday; //вчерашняя цена
+                        DayBeforeYesterdayPrice = OldCourse[i].DayBeforeYesterday;//Позавчерашняя цена
+                    }
+
+                    double SlidingYesterday = (DayBeforeYesterdayPrice + YesterdayPrice + ActualPrice) / 3;//скользящая вчера = (позавчера + вчера + сегодня)/3
+                    ValuePredict = Math.Round(SlidingYesterday + (ActualPrice - YesterdayPrice) / 3, 3) - ActualPrice;   //прогноз на завтра = скользящая вчера +1/3*(сегодня-вчера)
+                    indexInGrid = FindInDGV(dataGridView1, element.Company.Title);
+                    PredictFormula.Add(element.Company.Title, ValuePredict);//записываем значение в словарь
+                    dataGridView1.Rows[indexInGrid].Cells[6].Value = ValuePredict; //высвечиваем в грид
+                }
+
+                //заполняем скрытый столбец прогноза в списке купленных акций
+                for (int i = 0; i < Buy.Count; i++)
                 {
                     int iBuy = FindInStockTable(Buy, dataGridView2.Rows[i].Cells[0].Value.ToString()); //ищем, так как грид может быть сортированным
-                    dataGridView2.Rows[i].Cells[3].Value = Predict[Buy[iBuy].name]; //высвечиваем в грид
+                    dataGridView2.Rows[i].Cells[4].Value = PredictFormula[Buy[iBuy].name]; //высвечиваем в грид
                     try
                     {
-                        PredictBuy.Add(Buy[iBuy].name, Predict[Buy[iBuy].name]); //записываем с словарь
+                        PredictBuyFormula.Add(Buy[iBuy].name, PredictFormula[Buy[iBuy].name]); //записываем в словарь
                     }
                     catch
                     {
-                        PredictBuy[Buy[iBuy].name] = Predict[Buy[iBuy].name];
+                        PredictBuyFormula[Buy[iBuy].name] = PredictFormula[Buy[iBuy].name];
                     } //избегать ошибки повторений
                 }
-                dataGridView2.Sort(PredictionBuy, ListSortDirection.Ascending); //сортировка по возрастанию
             }
-            else
-            {
-                MessageBox.Show("Чтобы что-то продать,надо для начала что-то купить");
-            }
-            textBoxCount.Text = "";//очистим поле
-            //}
-            //catch { MessageBox.Show("Произошла ошибка"); }
+            catch { throw; }
+            buttonBuyAuto.Enabled = true;
+            buttonSellAuto.Enabled = true;
+            FormulaPrediction.Checked = true;
         }
     }
 }
